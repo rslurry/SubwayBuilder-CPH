@@ -98,11 +98,14 @@ function findSourceDataFolder(startDir) {
 // Function to create a portable serve.bat
 function createServeBatch(baseDir) {
     const scriptsDir = path.join(baseDir, 'scripts');
-    const batPath = path.join(baseDir, 'serve.bat');
-    
+    let batContent;
+    let fext;
     // We create a batch file that hardcodes the path to the scripts folder.
     // This allows the user to move the .bat file anywhere (Desktop, etc.)
-    const batContent = `@echo off
+    if (os.platform() === 'win32') {
+        // Windows: powershell
+        fext = '.bat';
+        batContent = `@echo off
 title PMTiles Server (${DISPLAY_NAME})
 echo Starting map server...
 echo This window must remain open while playing.
@@ -115,13 +118,37 @@ if %errorlevel% neq 0 (
     pause
 )
 `;
+    } else {
+        // Unix: shell script
+        fext = '.sh';
+        batContent = `#!/usr/bin/env sh
 
+echo "Starting map server..."
+echo "This window must remain open while playing."
+echo
+
+# Navigate to the script directory
+cd "${scriptsDir}"
+
+# Run pmtiles (Linux/macOS binary assumed to be named 'pmtiles')
+./pmtiles serve . --port 8081 --cors="*"
+status=$?
+
+if [ $status -ne 0 ]; then
+    echo
+    echo "Error: Could not start pmtiles"
+    # macOS/Linux equivalent of 'pause'
+    read -r -p "Press Enter to exit..."
+fi
+`;
+    }
+    const batPath = path.join(baseDir, `serve${fext}`);
     try {
         fs.writeFileSync(batPath, batContent);
-        console.log(` [OK] Created portable serve.bat`);
+        console.log(` [OK] Created portable serve${fext}`);
         console.log(`      (You can move this file to your Desktop if you want)`);
     } catch (err) {
-        console.error(`Error: Could not create serve.bat: ${err.message}`);
+        console.error(`Error: Could not create serve${fext}: ${err.message}`);
     }
 }
 
@@ -188,8 +215,13 @@ async function install() {
     console.log("\nCreating server script...");
     createServeBatch(currentDir); 
     // ----------------------------
-    
-    console.log("\nYou can now start the 'serve.bat' file (feel free to move it to your Desktop).");
+    let fext;
+    if (os.platform() === 'win32') {
+        fext = '.bat'
+    } else {
+        fext = '.sh'
+    }
+    console.log(`\nYou can now start the 'serve${fext}' file (feel free to move it to your Desktop).`);
     console.log("Then start the game.");
 }
 
